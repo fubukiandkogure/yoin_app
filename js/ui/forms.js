@@ -2,6 +2,7 @@
 import { html, makeExpDate, splitExpDate, parseTags, safeUrl } from '../util.js';
 import { TYPES, STATUSES, VERBS } from '../model.js';
 import { COMMENT_HINT_LENGTH } from '../config.js';
+import { icon } from './icons.js';
 
 const MEMO_HINTS = ['どんな話？', '何がよかった？', '忘れたくない場面'];
 
@@ -37,7 +38,7 @@ export function workStateFields(w, tagSuggestions = []) {
     <div class="row2">
       <label class="field"><span class="label">状態</span>
         <select name="status">${statusOptions(w.status || 'done')}</select></label>
-      <label class="field check fav-check"><input type="checkbox" name="favorite" ${w.favorite ? 'checked' : ''}><span>特別なお気に入り</span></label>
+      <label class="field check fav-check"><input type="checkbox" name="favorite" ${w.favorite ? 'checked' : ''}>${icon('star', { size: 18 })}<span>お気に入り</span></label>
     </div>
     <label class="field"><span class="label">タグ</span>
       <input name="tags" value="${(w.tags || []).join(' ')}" placeholder="スペースか読点で区切る" list="tag-list" autocomplete="off">
@@ -52,11 +53,13 @@ export function experienceFields(e, type) {
   return html`
     <div class="field score-field">
       <span class="label">点数 <small>0〜100点・空欄なら未採点</small></span>
-      <div class="score-row">
+      <div class="score-display">
         <input name="score" class="score-num" value="${score ?? ''}" inputmode="numeric" maxlength="3" placeholder="未採点" autocomplete="off" aria-label="点数">
-        <input type="range" class="score-range ${score === null ? 'unset' : ''}" min="0" max="100" step="1" value="${score ?? 50}" aria-label="点数スライダー" tabindex="-1">
-        <button type="button" class="btn small ghost" data-act="clear-score">未採点</button>
+        <span class="score-unit">/ 100</span>
+        <button type="button" class="btn small ghost" data-act="clear-score">未採点にする</button>
       </div>
+      <input type="range" class="score-range ${score === null ? 'unset' : ''}" min="0" max="100" step="1" value="${score ?? 50}" aria-label="点数スライダー" tabindex="-1">
+      <div class="score-quick">${[60, 70, 80, 90, 100].map((n) => html`<button type="button" class="chip" data-act="score-set" data-score="${n}">${n}</button>`)}</div>
     </div>
     <label class="field"><span class="label">ひとこと感想</span>
       <textarea name="comment" rows="2" maxlength="2000" placeholder="短く一言で">${e?.comment || ''}</textarea>
@@ -76,7 +79,7 @@ export function experienceFields(e, type) {
     </fieldset>
     <label class="field"><span class="label">誰と・どこで</span>
       <input name="note" value="${e?.note || ''}" maxlength="2000" placeholder="例：友達と映画館で" autocomplete="off"></label>
-    <p class="hint private-note">感想・メモ・誰とどこでは、自分だけが見られます（共有には含まれません）。</p>`;
+    <p class="hint private-note">${icon('check', { size: 16 })}<span>感想・メモ・誰とどこでは自分だけが見られます。共有画像には載りません。</span></p>`;
 }
 
 /** 入力欄の補助動作（点数スライダー、文字数、メモのヒント、今日ボタン） */
@@ -113,7 +116,10 @@ export function bindFormHelpers(form) {
     const btn = ev.target.closest('button[data-act]');
     if (!btn) return;
     const act = btn.dataset.act;
-    if (act === 'clear-score') {
+    if (act === 'score-set') {
+      num.value = btn.dataset.score;
+      num.dispatchEvent(new Event('input', { bubbles: true }));
+    } else if (act === 'clear-score') {
       num.value = '';
       range.classList.add('unset');
       form.dispatchEvent(new Event('input', { bubbles: true }));

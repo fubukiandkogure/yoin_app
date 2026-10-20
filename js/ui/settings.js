@@ -2,13 +2,15 @@
 import { APP_NAME, DATA_FILE, SETTINGS_FILE } from '../config.js';
 import { html, formatDateTime } from '../util.js';
 import { makeBackup, parseBackup, validateData } from '../model.js';
-import { getConnection, setConnection, clearConnection } from '../store/repo.js';
+import { getConnection, setConnection, clearConnection, clearCache } from '../store/repo.js';
+import { THEMES, getTheme, setTheme } from '../prefs.js';
 import { GitHubAdapter } from '../store/github.js';
 import { describeError } from '../store/errors.js';
 import { toast, confirmDialog, downloadBlob } from './components.js';
 
 export async function renderWelcome(ctx) {
   ctx.main.innerHTML = String(html`<section class="page welcome">
+    <div class="empty-art" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
     <h1 class="welcome-title">${APP_NAME}</h1>
     <p class="lead">観た映画、読んだ本、アニメを表紙で並べて、<br>そのときの感想を残しておく自分だけの棚。</p>
     <div class="welcome-actions">
@@ -88,6 +90,14 @@ export async function render(ctx) {
       <div class="restore-preview" aria-live="polite"></div>
     </section>` : ''}
 
+    <section class="card">
+      <h2 class="section-title">表示</h2>
+      <fieldset class="field">
+        <legend class="label">画面の色（この端末だけの設定）</legend>
+        <div class="seg theme-seg">${Object.entries(THEMES).map(([v, l]) => html`<label><input type="radio" name="theme" value="${v}" ${getTheme() === v ? 'checked' : ''}><span>${l}</span></label>`)}</div>
+      </fieldset>
+    </section>
+
     <section class="card credits">
       <h2 class="section-title">クレジット</h2>
       <p>映画・アニメの作品情報と画像は <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB</a> を利用しています。</p>
@@ -98,6 +108,7 @@ export async function render(ctx) {
   </section>`);
 
   const main = ctx.main;
+  main.querySelectorAll('input[name="theme"]').forEach((r) => r.addEventListener('change', () => setTheme(r.value)));
 
   // ---- GitHub 接続 ----
   const cform = main.querySelector('.connect-form');
@@ -152,6 +163,7 @@ export async function render(ctx) {
       const ok = await confirmDialog(msg, { okLabel: '解除する', danger: true });
       if (!ok) return;
       clearConnection();
+      clearCache();
       await ctx.reconnect();
       ctx.navigate('/welcome', { replace: true });
     } else if (act === 'clear-keys') {

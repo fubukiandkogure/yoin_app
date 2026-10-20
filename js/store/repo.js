@@ -8,6 +8,12 @@ import { GitHubAdapter } from './github.js';
 import { LocalAdapter } from './local.js';
 
 const KEY_CONNECTION = `${APP_ID}.connection`;
+const KEY_CACHE = `${APP_ID}.cache`;
+
+/** この端末に残した前回の記録を消す（接続解除時など） */
+export function clearCache() {
+  try { localStorage.removeItem(KEY_CACHE); } catch { /* 無視 */ }
+}
 
 export function getConnection() {
   try {
@@ -33,8 +39,10 @@ export function makeAdapter(conn) {
 }
 
 export class Repo {
-  constructor(adapter) {
+  /** cacheKey を渡すと、前回読み込んだ記録をこの端末に残し、次回の起動ですぐ表示できるようにする */
+  constructor(adapter, { cacheKey = null } = {}) {
     this.adapter = adapter;
+    this.cacheKey = cacheKey;
     this.data = emptyData();
     this.version = null;
     this.settings = {};
@@ -60,6 +68,56 @@ export class Repo {
     this.applyLoaded(d);
     this.settings = s.settings || {};
     this.settingsVersion = s.version;
+    this.saveCache();
+  }
+
+  /** 前回の記録を読み込む。使えたら true（その後 syncInBackground で最新にする） */
+  loadCache() {
+    if (!this.cacheKey) return false;
+    try {
+      const c = JSON.parse(localStorage.getItem(KEY_CACHE) || 'null');
+      if (!c || c.key !== this.cacheKey) return false;
+      const r = validateData(c.data);
+      if (!r.ok) return false;
+      this.data = r.data;
+      this.version = c.version ?? null;
+      this.settings = c.settings || {};
+      this.settingsVersion = c.settingsVersion ?? null;
+      this.loadedAt = 0; // 古い可能性があるので、すぐに読み直す
+      this.fromCache = true;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  saveCache() {
+    if (!this.cacheKey) return;
+    try {
+      localStorage.setItem(KEY_CACHE, JSON.stringify({
+        key: this.cacheKey, version: this.version, data: this.data,
+        settings: this.settings, settingsVersion: this.settingsVersion, savedAt: Date.now(),
+      }));
+    } catch { /* 容量不足などで残せなくても動作は続ける */ }
+  }
+
+  /** 保存の順番待ちに並べて最新を読み直す（保存と同時に走らないように）。内容が変わったら true */
+  syncInBackground() {
+    const run = async () => {
+      const before = this.version;
+      const [d, s] = await Promise.all([this.adapter.load(), this.adapter.loadSettings()]);
+      this.applyLoaded(d);
+      this.settings = s.settings || {};
+      this.settingsVersion = s.version;
+      this.fromCache = false;
+      this.saveCache();
+      const changed = this.version !== before;
+      if (changed) this.emit();
+      return changed;
+    };
+    const p = this.queue.then(run, run);
+    this.queue = p.catch(() => {});
+    return p;
   }
 
   applyLoaded({ data, version }) {
@@ -83,6 +141,7 @@ export class Repo {
     const before = this.version;
     this.applyLoaded(await this.adapter.load());
     const changed = this.version !== before;
+    this.saveCache();
     if (changed) this.emit();
     return changed;
   }
@@ -105,6 +164,7 @@ export class Repo {
       try {
         this.version = await this.adapter.save(r.data, this.version, message);
         this.data = r.data;
+        this.saveCache();
         this.emit();
         return result;
       } catch (e) {
@@ -129,9 +189,11 @@ export class Repo {
       const merged = { ...latest.settings, ...patch };
       this.settingsVersion = await this.adapter.saveSettings(merged, latest.version);
       this.settings = merged;
+      this.saveCache();
       return;
     }
     this.settings = next;
+    this.saveCache();
   }
 
   // ---------- 作品の削除（画像の棚からも外す） ----------

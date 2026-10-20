@@ -1,21 +1,30 @@
 // 画面共通の部品（表紙、ダイアログ、トースト、状態表示）。
 import { html, safeUrl } from '../util.js';
 import { TYPES, COVER_MISSING } from '../model.js';
+import { icon } from './icons.js';
+
+// 仮表紙の色（タイトルごとに決まる、落ち着いた色）
+const PH_COLORS = ['#3f5468', '#7a3b35', '#3e5a4c', '#8a6d3b', '#5b5560', '#46486b', '#2f4746', '#6b4f3a', '#4f3f55', '#55613a', '#2e3e5c', '#6a3f4f'];
+export function placeholderColor(title) {
+  let h = 0;
+  for (const c of String(title || '')) h = (h * 31 + c.codePointAt(0)) >>> 0;
+  return PH_COLORS[h % PH_COLORS.length];
+}
 
 /**
- * 表紙。画像の上に仮表紙を重ねて置き、画像が読めないときは仮表紙が見える。
+ * 表紙。画像の下に仮表紙を置き、画像が読めないときは仮表紙が見える。
  * item: { type, title, cover: {url, missingReason?} }
  */
-export function coverHtml(item, { size = '', thumb = false } = {}) {
+export function coverHtml(item, { size = '', thumb = false, eager = false } = {}) {
   const url = safeUrl(thumb && item.cover?.thumb ? item.cover.thumb : item.cover?.url);
   const reason = url ? '' : (COVER_MISSING[item.cover?.missingReason] || '画像なし');
   return html`<div class="cover ${size} ${url ? '' : 'no-image'}" data-type="${item.type}">
-    <div class="cover-ph" aria-hidden="true">
+    <div class="cover-ph" style="--ph:${placeholderColor(item.title)}" aria-hidden="true">
       <span class="ph-type">${TYPES[item.type] || ''}</span>
       <span class="ph-title">${item.title}</span>
       <span class="ph-reason">${reason}</span>
     </div>
-    ${url ? html`<img class="cover-img" src="${url}" alt="${item.title}の表紙" loading="lazy" decoding="async" referrerpolicy="no-referrer">` : ''}
+    ${url ? html`<img class="cover-img" src="${url}" alt="${item.title}の表紙" loading="${eager ? 'eager' : 'lazy'}" decoding="async" referrerpolicy="no-referrer">` : ''}
   </div>`;
 }
 
@@ -58,7 +67,7 @@ export function toast(message, kind = 'info') {
     el.setAttribute('aria-live', 'polite');
     document.body.appendChild(el);
   }
-  el.textContent = message;
+  el.innerHTML = String(html`${icon(kind === 'error' ? 'close' : 'check', { size: 18 })}<span>${message}</span>`);
   el.className = `show ${kind}`;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.className = ''; }, kind === 'error' ? 6000 : 2800);
@@ -67,16 +76,16 @@ export function toast(message, kind = 'info') {
 // ---------- ダイアログ ----------
 
 /** 確認ダイアログ。buttons: [{label, value, kind}]。閉じたら value（キャンセルは null）を返す */
-export function choose(message, buttons, { title = '' } = {}) {
+export function choose(message, buttons, { title = '', cancelLabel = 'キャンセル', className = '' } = {}) {
   return new Promise((resolve) => {
     const dlg = document.createElement('dialog');
-    dlg.className = 'dialog';
+    dlg.className = `dialog ${className}`;
     dlg.innerHTML = String(html`<div class="dialog-inner">
       ${title ? html`<h2 class="dialog-title">${title}</h2>` : ''}
       <div class="dialog-body">${message}</div>
       <div class="dialog-actions">
         ${buttons.map((b, i) => html`<button type="button" class="btn ${b.kind || ''}" data-i="${i}">${b.label}</button>`)}
-        <button type="button" class="btn ghost" data-i="cancel">キャンセル</button>
+        <button type="button" class="btn ghost" data-i="cancel">${cancelLabel}</button>
       </div>
     </div>`);
     document.body.appendChild(dlg);

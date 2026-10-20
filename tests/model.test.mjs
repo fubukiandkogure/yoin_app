@@ -164,3 +164,26 @@ test('openBD の著者・書名の整形', async () => {
   assert.deepEqual(splitOpenbdTitle('ノルウェイの森. 上', ''), { title: 'ノルウェイの森', volume: '上' });
   assert.deepEqual(splitOpenbdTitle('コンビニ人間', ''), { title: 'コンビニ人間', volume: '' });
 });
+
+test('年ごとの棚：新しい年から、時期不明は最後', async () => {
+  const { groupByYear } = await import('../js/model.js');
+  const e = (id, value) => ({ work: { id }, latest: value === undefined ? null : { date: value ? { precision: 'year', value } : { precision: 'unknown', value: null } } });
+  const groups = groupByYear([e('a', '2021'), e('b', null), e('c', '2024'), e('d'), e('f', '2021')]);
+  assert.deepEqual(groups.map((g) => g.label), ['2024年', '2021年', '時期不明']);
+  assert.deepEqual(groups[1].items.map((x) => x.work.id), ['a', 'f']);
+  assert.deepEqual(groups[2].items.map((x) => x.work.id), ['b', 'd']);
+});
+
+test('共有画像のテーマとレイアウト：初期値・不正な値', () => {
+  const d = sample();
+  delete d.shelves[0].options.theme;
+  const r = validateData(d);
+  assert.ok(r.ok);
+  assert.equal(r.data.shelves[0].options.theme, 'paper');
+  assert.equal(r.data.shelves[0].options.layout, 'tall');
+  d.shelves[0].options.layout = 'circle';
+  assert.equal(validateData(d).ok, false);
+  d.shelves[0].options.layout = 'square';
+  d.shelves[0].options.theme = 'night';
+  assert.ok(validateData(d).ok);
+});

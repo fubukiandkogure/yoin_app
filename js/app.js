@@ -2,8 +2,10 @@
 import { APP_NAME } from './config.js';
 import { html } from './util.js';
 import { Repo, getConnection, makeAdapter } from './store/repo.js';
+import { applyTheme, watchSystemTheme } from './prefs.js';
+import { icon } from './ui/icons.js';
 import { describeError } from './store/errors.js';
-import { installCoverErrorHandler, loadingHtml, errorHtml, confirmDialog } from './ui/components.js';
+import { installCoverErrorHandler, errorHtml, confirmDialog, toast } from './ui/components.js';
 import * as shelfView from './ui/shelf.js';
 import * as addView from './ui/add.js';
 import * as workView from './ui/work.js';
@@ -61,7 +63,7 @@ function currentPath() {
 
 function updateChrome(conn, nav) {
   document.querySelector('.mode-badge').hidden = conn?.mode !== 'trial';
-  document.querySelectorAll('.bottom-nav a').forEach((a) => {
+  document.querySelectorAll('a[data-nav]').forEach((a) => {
     a.classList.toggle('active', a.dataset.nav === nav);
     if (a.dataset.nav === nav) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
@@ -96,7 +98,7 @@ async function route() {
       main.innerHTML = String(html`${errorHtml(`記録を読み込めませんでした。${describeError(bootError)}`)}<p class="center"><a href="#/settings">接続設定を確認する</a></p>`);
       main.querySelector('[data-act="retry"]').addEventListener('click', () => boot());
     } else {
-      main.innerHTML = String(loadingHtml('記録を読み込み中…'));
+      main.innerHTML = String(skeletonHtml());
     }
     return;
   }
@@ -137,18 +139,57 @@ window.addEventListener('beforeunload', (e) => {
   }
 });
 
+// 読み込み中の仮表示（表紙の形の枠）
+function skeletonHtml() {
+  return html`<div class="grid" aria-busy="true" aria-label="記録を読み込み中">${Array.from({ length: 9 }, () => html`<div class="tile"><div class="tile-cover"><div class="cover skeleton"></div></div><div class="tile-meta"><span class="skeleton" style="height:12px;width:70%"></span></div></div>`)}</div>`;
+}
+
+// ---- 同期の表示（上部バー） ----
+const syncEl = document.querySelector('.sync');
+let syncError = null;
+function setSync(state, err = null) {
+  syncError = err;
+  syncEl.hidden = !state;
+  syncEl.classList.toggle('offline', state === 'offline');
+  syncEl.innerHTML = state === 'syncing'
+    ? String(html`<span class="dot"></span>同期中`)
+    : state === 'offline' ? String(html`${icon('cloudOff', { size: 15 })}未同期`) : '';
+  syncEl.title = state === 'offline' ? '最新の記録を確認できませんでした。タップで再試行' : '';
+}
+syncEl.addEventListener('click', () => {
+  if (syncError) {
+    toast(`最新の記録を確認できませんでした。${describeError(syncError)}`, 'error');
+    backgroundSync();
+  }
+});
+
+// 入力中でない、読むだけの画面なら同期後に描き直す
+const isPassive = () => /^\/?$|^\/work\/[^/]+$|^\/shares$/.test(currentPath());
+
+async function backgroundSync() {
+  if (!repo) return;
+  setSync('syncing');
+  try {
+    const changed = await repo.syncInBackground();
+    setSync('');
+    if (changed && !dirty && isPassive()) route();
+  } catch (e) {
+    console.error(e);
+    setSync('offline', e);
+  }
+}
+
 // 別端末での更新を拾う：画面に戻ってきたとき、入力中でなければ読み直す
-document.addEventListener('visibilitychange', async () => {
+document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' || !ready || dirty || !repo) return;
   if (Date.now() - repo.loadedAt < 30000) return;
-  try {
-    if (await repo.refresh()) route();
-  } catch { /* 次の操作時にエラーが出る */ }
+  backgroundSync();
 });
 
 async function boot() {
   ready = false;
   bootError = null;
+  setSync('');
   const conn = getConnection();
   updateChrome(conn);
   if (!conn) {
@@ -156,7 +197,14 @@ async function boot() {
     route();
     return;
   }
-  repo = new Repo(makeAdapter(conn));
+  repo = new Repo(makeAdapter(conn), { cacheKey: conn.mode === 'github' ? `${conn.owner}/${conn.repo}` : null });
+  // 前回の記録が端末に残っていれば、すぐに表示してから裏で最新にする
+  if (repo.loadCache()) {
+    ready = true;
+    route();
+    backgroundSync();
+    return;
+  }
   route();
   try {
     await repo.init();
@@ -168,7 +216,14 @@ async function boot() {
   route();
 }
 
+applyTheme();
+watchSystemTheme();
 document.title = APP_NAME;
 document.querySelector('.brand').textContent = APP_NAME;
 installCoverErrorHandler();
 boot();
+
+// アプリのファイルを常に最新にし、オフラインでも開けるようにする
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(() => { /* 使えなくても通常どおり動く */ });
+}

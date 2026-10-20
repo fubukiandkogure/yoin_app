@@ -2,10 +2,11 @@
 // 画像は端末に保存するか、LINEなどのアプリに直接送る（アプリからは何も公開しない）。
 import { html, newId, nowIso, normalizeText } from '../util.js';
 import { MAX_SHELF_ITEMS } from '../config.js';
-import { findWork, latestExperience, buildImageData, DEFAULT_IMAGE_OPTIONS, shelfEntries, filterAndSort } from '../model.js';
+import { findWork, latestExperience, buildImageData, DEFAULT_IMAGE_OPTIONS, IMAGE_THEMES, IMAGE_LAYOUTS, shelfEntries, filterAndSort } from '../model.js';
 import { describeError } from '../store/errors.js';
 import { renderShelfImage } from '../png.js';
 import { coverHtml, scoreText, toast, confirmDialog, downloadBlob, loadingHtml } from './components.js';
+import { icon } from './icons.js';
 
 const TITLE_EXAMPLES = ['自分を構成する9作品', '設定に引き込まれた作品', '今年よかった作品'];
 const OPTION_LABELS = {
@@ -22,14 +23,15 @@ export async function renderList(ctx) {
   ctx.main.innerHTML = String(html`<section class="page">
     <h1 class="page-title">共有画像</h1>
     <p class="lead">好きな作品を1〜9つ選んで、表紙を並べた画像を作れます。保存した画像は、LINEなどで自由に送れます。</p>
-    <a class="btn primary wide" href="#/shares/new">新しく作る</a>
+    <a class="btn primary wide" href="#/shares/new">${icon('plus', { size: 18 })}新しく作る</a>
     ${shelves.length ? html`<ul class="shelf-list">${shelves.map((s) => html`<li><a class="shelf-card" href="#/shares/${s.id}">
       <div class="mini-covers">${s.items.slice(0, 3).map((it) => {
         const w = findWork(repo.data, it.workId);
         return w ? coverHtml(w, { size: 'mini' }) : '';
       })}</div>
       <div class="shelf-card-text"><span class="shelf-card-title">${s.title || '無題'}</span>
-      <span class="muted">${s.items.length}作品</span></div>
+      <span class="muted small">${s.items.length}作品 ・ ${IMAGE_LAYOUTS[s.options.layout] || ''}</span></div>
+      ${icon('next', { size: 18 })}
     </a></li>`)}</ul>` : html`<p class="muted center empty-note">まだ作っていません。</p>`}
     ${repo.data.works.length ? '' : html`<p class="hint center">先に作品棚へ作品を追加してください。</p>`}
   </section>`);
@@ -52,7 +54,7 @@ export async function renderEditor(ctx, id) {
   const markDirty = () => { dirty = true; ctx.setDirty(true); };
 
   ctx.main.innerHTML = String(html`<section class="page shelf-editor">
-    <a class="link-back" href="#/shares">← 共有画像の一覧</a>
+    <a class="link-back" href="#/shares">${icon('back', { size: 18 })}共有画像の一覧</a>
     <h1 class="page-title">${isNew ? '共有画像を作る' : '共有画像を編集'}</h1>
 
     <label class="field"><span class="label">棚のタイトル</span>
@@ -61,24 +63,41 @@ export async function renderEditor(ctx, id) {
 
     <div class="section-head">
       <h2 class="section-title">作品 <small class="item-count"></small></h2>
-      <button type="button" class="btn small" data-act="pick">作品を選ぶ</button>
+      <button type="button" class="btn small" data-act="pick">${icon('plus', { size: 16 })}作品を選ぶ</button>
     </div>
-    <p class="hint">並び順は左のつまみをドラッグするか、↑↓で変えられます。おすすめの一言は画像に載ります（自分用の感想とは別です）。</p>
+    <p class="hint">並び順は左のつまみをドラッグするか、矢印ボタンで変えられます。おすすめの一言は画像に載ります（自分用の感想とは別です）。</p>
     <ol class="item-list"></ol>
 
+    <div class="form-card">
+    <h2 class="section-title">画像のデザイン</h2>
+    <fieldset class="field opt-group">
+      <legend class="label">レイアウト</legend>
+      <div class="layout-choices">
+        ${Object.entries(IMAGE_LAYOUTS).map(([v, l]) => html`<label class="layout-choice"><input type="radio" name="layout" value="${v}" ${draft.options.layout === v ? 'checked' : ''}>
+          <span class="demo ${v} ${draft.options.theme}">${Array.from({ length: v === 'tall' ? 3 : 6 }, () => html`<i></i>`)}</span>${l}</label>`)}
+      </div>
+    </fieldset>
+    <fieldset class="field opt-group">
+      <legend class="label">色</legend>
+      <div class="layout-choices">
+        ${Object.entries(IMAGE_THEMES).map(([v, l]) => html`<label class="layout-choice"><input type="radio" name="theme" value="${v}" ${draft.options.theme === v ? 'checked' : ''}>
+          <span class="demo ${v}">${Array.from({ length: 3 }, () => html`<i></i>`)}</span>${l}</label>`)}
+      </div>
+    </fieldset>
     <fieldset class="field options">
       <legend class="label">画像に載せるもの</legend>
       ${Object.entries(OPTION_LABELS).map(([k, l]) => html`<label class="check"><input type="checkbox" name="${k}" ${draft.options[k] ? 'checked' : ''}><span>${l}</span></label>`)}
-      <small class="hint">ひとこと感想・詳細メモ・誰と観たかは画像に載りません。</small>
+      <small class="hint">正方形では表紙を大きく並べるため、おすすめの一言は載りません。ひとこと感想・詳細メモ・誰と観たかは、どちらでも載りません。</small>
     </fieldset>
+    </div>
 
     <div class="form-error" role="alert" hidden></div>
     <div class="actions">
-      <button type="button" class="btn primary wide" data-act="render">画像を作る</button>
+      <button type="button" class="btn primary wide" data-act="render">${icon('image', { size: 18 })}画像を作る</button>
       <button type="button" class="btn wide" data-act="save">下書きを保存</button>
     </div>
     <section class="image-result" aria-live="polite"></section>
-    ${isNew ? '' : html`<div class="btn-row end"><button type="button" class="btn ghost danger-text" data-act="delete">この共有画像を削除</button></div>`}
+    ${isNew ? '' : html`<div class="btn-row end"><button type="button" class="btn ghost danger-text" data-act="delete">${icon('trash', { size: 16 })}この共有画像を削除</button></div>`}
   </section>`);
 
   const main = ctx.main;
@@ -89,7 +108,7 @@ export async function renderEditor(ctx, id) {
   const drawItems = () => {
     main.querySelector('.item-count').textContent = `${draft.items.length} / ${MAX_SHELF_ITEMS}`;
     if (!draft.items.length) {
-      list.innerHTML = String(html`<li class="empty-item"><button type="button" class="btn" data-act="pick">作品棚から選ぶ</button></li>`);
+      list.innerHTML = String(html`<li class="empty-item"><button type="button" class="btn" data-act="pick">${icon('plus', { size: 16 })}作品棚から選ぶ</button></li>`);
       return;
     }
     list.innerHTML = String(html`${draft.items.map((it, i) => {
@@ -97,14 +116,15 @@ export async function renderEditor(ctx, id) {
       const latest = latestExperience(repo.data, it.workId);
       return html`<li class="item-row" data-index="${i}">
         <div class="item-main">
-          <span class="drag-handle" aria-hidden="true" title="ドラッグで並べ替え">⋮⋮</span>
+          <span class="drag-handle" aria-hidden="true" title="ドラッグで並べ替え">${icon('grip', { size: 18 })}</span>
+          <span class="item-no">${i + 1}</span>
           ${coverHtml(w, { size: 'mini' })}
           <div class="item-text"><span class="item-title">${w.title}${w.volume ? ` ${w.volume}` : ''}</span>
             <span class="muted small">${scoreText(latest?.score)}</span></div>
           <div class="item-buttons">
-            <button type="button" class="icon-btn" data-act="up" ${i === 0 ? 'disabled' : ''} aria-label="上へ">↑</button>
-            <button type="button" class="icon-btn" data-act="down" ${i === draft.items.length - 1 ? 'disabled' : ''} aria-label="下へ">↓</button>
-            <button type="button" class="icon-btn" data-act="remove" aria-label="外す">×</button>
+            <button type="button" class="icon-btn" data-act="up" ${i === 0 ? 'disabled' : ''} aria-label="上へ">${icon('up', { size: 17 })}</button>
+            <button type="button" class="icon-btn" data-act="down" ${i === draft.items.length - 1 ? 'disabled' : ''} aria-label="下へ">${icon('down', { size: 17 })}</button>
+            <button type="button" class="icon-btn" data-act="remove" aria-label="外す">${icon('close', { size: 17 })}</button>
           </div>
         </div>
         <textarea class="rec" rows="2" maxlength="2000" placeholder="人にすすめる一言（任意）" aria-label="${w.title}のおすすめの一言">${it.recommendation}</textarea>
@@ -113,6 +133,14 @@ export async function renderEditor(ctx, id) {
     })}`);
   };
   drawItems();
+
+  // 正方形レイアウトでは一言を載せないので、チェック欄を無効にする
+  const syncOptionState = () => {
+    const rec = main.querySelector('input[name="showRecommendation"]');
+    rec.disabled = draft.options.layout === 'square';
+    rec.closest('.check').classList.toggle('muted', rec.disabled);
+  };
+  syncOptionState();
 
   const move = (from, to) => {
     if (to < 0 || to >= draft.items.length || from === to) return;
@@ -138,6 +166,16 @@ export async function renderEditor(ctx, id) {
   main.addEventListener('change', (e) => {
     const t = e.target;
     if (t.type === 'checkbox' && t.name in OPTION_LABELS) { draft.options[t.name] = t.checked; markDirty(); }
+    if (t.type === 'radio' && (t.name === 'layout' || t.name === 'theme')) {
+      draft.options[t.name] = t.value;
+      // レイアウトの見本の色をテーマに合わせる
+      main.querySelectorAll('input[name="layout"] + .demo').forEach((d) => {
+        d.classList.remove(...Object.keys(IMAGE_THEMES));
+        d.classList.add(draft.options.theme);
+      });
+      syncOptionState();
+      markDirty();
+    }
   });
 
   async function save() {
@@ -250,8 +288,8 @@ export async function renderEditor(ctx, id) {
       <img class="result-img" src="${url}" alt="作成した共有画像" width="${out.width}" height="${out.height}">
       ${out.failed.length ? html`<p class="hint warn">表紙を読み込めず仮表紙にした作品：${out.failed.join('、')}</p>` : ''}
       <div class="actions">
-        ${canShare ? html`<button type="button" class="btn primary wide" data-act="send">LINEなどで送る</button>` : ''}
-        <button type="button" class="btn wide ${canShare ? '' : 'primary'}" data-act="download">画像を保存</button>
+        ${canShare ? html`<button type="button" class="btn primary wide" data-act="send">${icon('send', { size: 18 })}LINEなどで送る</button>` : ''}
+        <button type="button" class="btn wide ${canShare ? '' : 'primary'}" data-act="download">${icon('download', { size: 18 })}画像を保存</button>
       </div>
       <p class="hint">iPhoneでは画像を長押しして「"写真"に保存」もできます。送った画像はあとから取り消せません。</p>`);
     result.scrollIntoView({ behavior: 'smooth', block: 'start' });

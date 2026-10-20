@@ -4,6 +4,7 @@ import { TYPES, findDuplicates, allTags, VERBS } from '../model.js';
 import { searchWorks, resolveCandidate, providerLabel } from '../search/index.js';
 import { describeError } from '../store/errors.js';
 import { coverHtml, loadingHtml, toast, choose } from './components.js';
+import { icon, TYPE_ICON } from './icons.js';
 import {
   workInfoFields, workStateFields, experienceFields, bindFormHelpers, readExperience, readWorkInfo, readWorkState, FormError,
 } from './forms.js';
@@ -55,16 +56,17 @@ function drawSearch(ctx) {
   main.innerHTML = String(html`<section class="page add-page">
     <h1 class="page-title">作品を追加</h1>
     <div class="seg type-seg" role="radiogroup" aria-label="種別">
-      ${Object.entries(TYPES).map(([v, l]) => html`<button type="button" role="radio" aria-checked="${st.type === v}" class="${st.type === v ? 'on' : ''}" data-type="${v}">${l}</button>`)}
+      ${Object.entries(TYPES).map(([v, l]) => html`<button type="button" role="radio" aria-checked="${st.type === v}" class="${st.type === v ? 'on' : ''}" data-type="${v}">${icon(TYPE_ICON[v], { size: 17 })}${l}</button>`)}
     </div>
     <form class="search-form" role="search">
+      ${icon('search', { size: 18 })}
       <input type="search" name="q" value="${st.query}" placeholder="${st.type === 'book' ? 'タイトル・著者・ISBN' : 'タイトル'}で検索" aria-label="検索語" autocomplete="off" enterkeyhint="search">
       <button class="btn primary" type="submit">検索</button>
     </form>
     <div class="results" aria-live="polite">${resultsHtml()}</div>
     <div class="manual-cta">
       <span>見つからない・画像がないときは</span>
-      <button type="button" class="btn" data-act="manual">手入力で登録</button>
+      <button type="button" class="btn" data-act="manual">${icon('edit', { size: 16 })}手入力で登録</button>
     </div>
     <p class="hint center">検索元：${providerLabel(st.type)}</p>
   </section>`);
@@ -110,15 +112,21 @@ function resultsHtml() {
   }
   if (!st.results) return '';
   if (!st.results.length) return html`<div class="state"><p>「${st.query}」は見つかりませんでした。</p><button type="button" class="btn small primary" data-act="manual">手入力で登録</button></div>`;
-  return html`<ul class="result-list">${st.results.map((c, i) => html`<li><button type="button" class="result" data-idx="${i}">
+  const data = baseCtx.repo.data;
+  return html`<ul class="result-list">${st.results.map((c, i) => {
+    const owned = findDuplicates(data, candToWork(c)).length > 0 || (c.needsSeason && data.works.some((w) => w.source.provider === c.provider && w.source.id === c.id));
+    return html`<li><button type="button" class="result" data-idx="${i}">
     ${coverHtml({ ...c, cover: c.cover || { missingReason: 'no_image' } }, { size: 'thumb', thumb: true })}
     <span class="result-text">
-      <span class="result-title">${c.title}</span>
+      <span class="result-title">${c.title}${c.volume ? html` <small class="muted">${c.volume}</small>` : ''}</span>
+      ${owned ? html`<span><span class="badge subtle">${icon('check', { size: 12 })}棚にあります</span></span>` : ''}
       ${c.originalTitle ? html`<span class="result-sub">${c.originalTitle}</span>` : ''}
       <span class="result-sub">${[c.year ? `${c.year}年` : '', c.creator, c.extra].filter(Boolean).join(' · ')}</span>
       ${c.cover ? '' : html`<span class="result-sub muted">画像なし</span>`}
     </span>
-  </button></li>`)}</ul>`;
+    ${icon('next', { size: 18 })}
+  </button></li>`;
+  })}</ul>`;
 }
 
 async function runSearch(ctx) {
@@ -168,7 +176,7 @@ function applySeason(show, season) {
 function drawSeasons(ctx) {
   const show = st.seasonsOf;
   ctx.main.innerHTML = String(html`<section class="page">
-    <button type="button" class="link-back" data-act="back">← 検索結果に戻る</button>
+    <button type="button" class="link-back" data-act="back">${icon('back', { size: 18 })}検索結果に戻る</button>
     <h1 class="page-title">${show.title}</h1>
     <p class="hint">どのシーズンを記録しますか？</p>
     <ul class="result-list">
@@ -230,7 +238,7 @@ function drawForm(ctx) {
   const w = st.base;
   const repo = ctx.repo;
   ctx.main.innerHTML = String(html`<section class="page">
-    <button type="button" class="link-back" data-act="back">← 検索に戻る</button>
+    <button type="button" class="link-back" data-act="back">${icon('back', { size: 18 })}検索に戻る</button>
     <form class="work-form" novalidate>
       ${st.manual ? html`<h1 class="page-title">手入力で登録</h1>` : html`<div class="picked">
         ${coverHtml(w, { size: 'medium' })}
@@ -245,9 +253,11 @@ function drawForm(ctx) {
         <summary>作品情報を確認・修正</summary>
         ${workInfoFields(w, { showType: st.manual })}
       </details>
-      ${workStateFields(w, allTags(repo.data))}
-      <h2 class="section-title">記録 <small>空欄のままでも保存できます</small></h2>
-      ${experienceFields(null, w.type)}
+      <div class="form-card">${workStateFields(w, allTags(repo.data))}</div>
+      <div class="form-card">
+        <h2 class="section-title">記録 <small>空欄のままでも保存できます</small></h2>
+        ${experienceFields(null, w.type)}
+      </div>
       <div class="form-error" role="alert" hidden></div>
       <div class="actions sticky-actions">
         <button type="submit" class="btn primary wide">棚に保存</button>
@@ -297,6 +307,7 @@ function drawForm(ctx) {
       });
       ctx.setDirty(false);
       st = fresh();
+      try { sessionStorage.setItem('yoin.justAdded', work.id); } catch { /* 無視 */ }
       toast('棚に保存しました');
       ctx.navigate(`/work/${work.id}`, { replace: true });
     } catch (err) {

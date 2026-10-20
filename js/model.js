@@ -123,7 +123,13 @@ function normExperience(e, label, S, fail, workIds) {
 }
 
 // 画像にする棚の表示設定（初期値：作品名・おすすめの一言・点数を載せ、棚タイトルは載せない）
-export const DEFAULT_IMAGE_OPTIONS = { showTitle: false, showWorkTitle: true, showRecommendation: true, showScore: true };
+export const DEFAULT_IMAGE_OPTIONS = {
+  showTitle: false, showWorkTitle: true, showRecommendation: true, showScore: true,
+  theme: 'paper', // paper（生成り）| night（夜）
+  layout: 'tall', // tall（縦長・文字あり）| square（正方形・表紙中心）
+};
+export const IMAGE_THEMES = { paper: '生成り', night: '夜' };
+export const IMAGE_LAYOUTS = { tall: '縦長（文字あり）', square: '正方形（表紙中心）' };
 
 function normShelf(s, label, S, fail, workIds) {
   if (!isObj(s)) { fail(`${label}の形式が正しくありません`); return null; }
@@ -139,7 +145,12 @@ function normShelf(s, label, S, fail, workIds) {
   }).filter(Boolean);
   const o = isObj(s.options) ? s.options : {};
   const options = {};
-  for (const [k, def] of Object.entries(DEFAULT_IMAGE_OPTIONS)) options[k] = o[k] === undefined ? def : S.bool(o[k], `${label}の表示設定`);
+  for (const [k, def] of Object.entries(DEFAULT_IMAGE_OPTIONS)) {
+    if (o[k] === undefined) options[k] = def;
+    else if (k === 'theme') options[k] = S.oneOf(o[k], `${label}の画像テーマ`, Object.keys(IMAGE_THEMES));
+    else if (k === 'layout') options[k] = S.oneOf(o[k], `${label}の画像レイアウト`, Object.keys(IMAGE_LAYOUTS));
+    else options[k] = S.bool(o[k], `${label}の表示設定`);
+  }
   return {
     id: S.id(s.id, label),
     title: S.str(s.title, `${label}のタイトル`, { max: 200 }),
@@ -319,6 +330,23 @@ export function filterAndSort(entries, { q = '', type = '', status = '', favorit
   }
   return list;
 }
+
+/** 年ごとの棚：最新の体験記録の年でまとめる（新しい年から。時期不明は最後） */
+export function groupByYear(entries) {
+  const groups = new Map();
+  for (const e of entries) {
+    const v = e.latest?.date?.value;
+    const key = v ? v.slice(0, 4) : 'unknown';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(e);
+  }
+  return [...groups.entries()]
+    .sort(([a], [b]) => (a === 'unknown' ? 1 : b === 'unknown' ? -1 : b.localeCompare(a)))
+    .map(([year, items]) => ({ year, label: year === 'unknown' ? '時期不明' : `${year}年`, items }));
+}
+
+/** 「これから」の作品（何にしようか迷ったとき用） */
+export const plannedWorks = (data) => data.works.filter((w) => w.status === 'planned');
 
 // ---------- 振り返り ----------
 

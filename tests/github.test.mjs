@@ -119,3 +119,27 @@ test('接続確認：公開リポジトリかどうかを返す', async () => {
   assert.equal(info.private, false);
   assert.equal(info.login, 'me');
 });
+
+test('端末に残した記録：同じ保存先なら次回すぐ表示でき、別の保存先なら使わない', async () => {
+  const store = new Map();
+  globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
+  try {
+    const gh = fakeGitHub();
+    const mk = (key) => new Repo(new GitHubAdapter({ owner: 'me', repo: 'data', token: 'good', fetchImpl: gh.fetchImpl }), { cacheKey: key });
+    const first = mk('me/data');
+    await first.init();
+    await first.mutate('追加', (d) => { d.works.push(newWork('w1', 'キャッシュの本')); });
+    const second = mk('me/data');
+    assert.equal(second.loadCache(), true);
+    assert.equal(second.data.works[0].title, 'キャッシュの本');
+    assert.equal(mk('someone/else').loadCache(), false);
+    // 別端末で更新されていても、裏の同期で最新になる
+    const other = mk(null);
+    await other.init();
+    await other.mutate('別端末で追加', (d) => { d.works.push(newWork('w2', '別端末の本')); });
+    assert.equal(await second.syncInBackground(), true);
+    assert.deepEqual(second.data.works.map((w) => w.title), ['キャッシュの本', '別端末の本']);
+  } finally {
+    delete globalThis.localStorage;
+  }
+});

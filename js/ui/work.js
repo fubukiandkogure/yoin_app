@@ -1,8 +1,11 @@
 // 作品詳細・作品情報の編集・体験記録の追加と編集。
-import { html, newId, nowIso, formatExpDate, formatDateTime } from '../util.js';
-import { TYPES, STATUSES, VERBS, findWork, experiencesOf, allTags, shelvesContaining } from '../model.js';
+import { html, newId, nowIso, formatExpDate, formatDateTime, safeUrl } from '../util.js';
+import { TYPES, STATUSES, VERBS, COVER_MISSING, findWork, experiencesOf, allTags, shelvesContaining } from '../model.js';
 import { describeError } from '../store/errors.js';
-import { coverHtml, scoreText, toast, confirmDialog } from './components.js';
+import { coverHtml, scoreText, toast, confirmDialog, placeholderColor } from './components.js';
+import { icon, TYPE_ICON } from './icons.js';
+
+const favLabel = (on) => html`${icon(on ? 'starFill' : 'star', { size: 16 })}お気に入り`;
 import {
   workInfoFields, workStateFields, experienceFields, bindFormHelpers, readExperience, readWorkInfo, readWorkState, statusOptions, FormError,
 } from './forms.js';
@@ -27,23 +30,39 @@ export async function renderDetail(ctx, id) {
   const latest = exps[0] || null;
   const verb = VERBS[w.type];
 
+  const heroUrl = safeUrl(w.cover.url);
+  let justAdded = false;
+  try {
+    justAdded = sessionStorage.getItem('yoin.justAdded') === id;
+    if (justAdded) sessionStorage.removeItem('yoin.justAdded');
+  } catch { /* 無視 */ }
+
   ctx.main.innerHTML = String(html`<article class="page work-detail">
-    <div class="detail-head">
-      ${coverHtml(w, { size: 'large' })}
-      <div class="detail-info">
-        <span class="badge">${TYPES[w.type]}</span>
-        <h1 class="detail-title">${w.title}${w.volume ? html` <small>${w.volume}</small>` : ''}</h1>
-        <p class="muted">${[w.year ? `${w.year}年` : '', w.creator].filter(Boolean).join(' · ')}</p>
-        ${w.tags.length ? html`<p class="tags">${w.tags.map((t) => html`<span class="tag">#${t}</span>`)}</p>` : ''}
-        <div class="quick">
-          <label class="quick-status"><span class="sr-only">状態</span><select name="status">${statusOptions(w.status)}</select></label>
-          <button type="button" class="fav-toggle ${w.favorite ? 'on' : ''}" data-act="fav" aria-pressed="${w.favorite}">${w.favorite ? '★ お気に入り' : '☆ お気に入り'}</button>
+    <header class="hero">
+      ${heroUrl ? html`<img class="hero-bg" src="${heroUrl}" alt="" aria-hidden="true" referrerpolicy="no-referrer">` : html`<div class="hero-bg" style="background:${placeholderColor(w.title)}"></div>`}
+      <a class="link-back" href="#/">${icon('back', { size: 18 })}作品棚</a>
+      <div class="detail-head">
+        ${coverHtml(w, { size: 'large', eager: true })}
+        <div class="detail-info">
+          <span class="badge">${icon(TYPE_ICON[w.type], { size: 13 })}${TYPES[w.type]}</span>
+          <h1 class="detail-title">${w.title}${w.volume ? html` <small>${w.volume}</small>` : ''}</h1>
+          <p class="muted small">${[w.year ? `${w.year}年` : '', w.creator].filter(Boolean).join(' · ')}</p>
+          ${w.tags.length ? html`<p class="tags">${w.tags.map((t) => html`<span class="tag">#${t}</span>`)}</p>` : ''}
+          <div class="quick">
+            <label class="quick-status"><span class="sr-only">状態</span><select name="status">${statusOptions(w.status)}</select></label>
+            <button type="button" class="fav-toggle ${w.favorite ? 'on' : ''}" data-act="fav" aria-pressed="${w.favorite}">${favLabel(w.favorite)}</button>
+          </div>
         </div>
       </div>
-    </div>
+    </header>
+
+    ${justAdded ? html`<div class="banner">${icon('check', { size: 18 })}棚に追加しました<a class="btn small" href="#/add">${icon('plus', { size: 16 })}続けて追加</a></div>` : ''}
 
     ${latest ? html`<section class="latest">
-      <div class="latest-score ${latest.score === null ? 'unscored' : ''}">${latest.score === null ? '未採点' : html`${latest.score}<small>点</small>`}</div>
+      <div class="latest-score ${latest.score === null ? 'unscored' : ''}">
+        <span class="num">${latest.score === null ? '未採点' : latest.score}</span>
+        ${latest.score === null ? '' : html`<span class="unit">/ 100</span><div class="meter"><span style="width:${latest.score}%"></span></div>`}
+      </div>
       ${latest.comment ? html`<p class="latest-comment">「${latest.comment}」</p>` : html`<p class="muted">ひとこと感想はまだありません</p>`}
     </section>` : ''}
 
@@ -51,21 +70,22 @@ export async function renderDetail(ctx, id) {
       <div class="section-head">
         <h2 class="section-title">${verb}記録 <small>${exps.length}件</small></h2>
       </div>
-      <a class="btn primary wide" href="#/work/${w.id}/exp/new">${exps.length ? `もう一度${verb}記録を追加` : '記録を書く'}</a>
-      ${exps.length ? html`<ol class="exp-list">${exps.map((e, i) => html`<li class="exp-card">
+      <a class="btn primary wide" href="#/work/${w.id}/exp/new">${icon('plus', { size: 18 })}${exps.length ? `もう一度${verb}記録を追加` : '記録を書く'}</a>
+      ${exps.length ? html`<ol class="exp-list">${exps.map((e, i) => html`<li class="exp-card ${i === 0 ? 'latest-exp' : ''}">
         <div class="exp-head">
           <span class="exp-date">${formatExpDate(e.date)}</span>
           ${i === 0 && exps.length > 1 ? html`<span class="badge subtle">最新</span>` : ''}
+          ${exps.length > 1 ? html`<span class="muted small">${exps.length - i}回目</span>` : ''}
           <span class="exp-score">${scoreText(e.score)}</span>
         </div>
         ${e.comment ? html`<p class="exp-comment">${e.comment}</p>` : ''}
-        ${e.memo ? html`<details class="exp-memo"><summary>詳細メモ</summary><div class="memo-text">${e.memo}</div></details>` : ''}
+        ${e.memo ? html`<details class="exp-memo" ${exps.length === 1 ? 'open' : ''}><summary>詳細メモ</summary><div class="memo-text">${e.memo}</div></details>` : ''}
         ${e.note ? html`<p class="exp-note">${e.note}</p>` : ''}
         <div class="exp-foot">
           <small class="muted">記録 ${formatDateTime(e.createdAt)}${e.updatedAt !== e.createdAt ? ` ・ 更新 ${formatDateTime(e.updatedAt)}` : ''}</small>
           <span>
-            <a class="btn small ghost" href="#/work/${w.id}/exp/${e.id}">編集</a>
-            <button type="button" class="btn small ghost danger-text" data-act="del-exp" data-id="${e.id}">削除</button>
+            <a class="btn small ghost" href="#/work/${w.id}/exp/${e.id}">${icon('edit', { size: 15 })}編集</a>
+            <button type="button" class="btn small ghost danger-text" data-act="del-exp" data-id="${e.id}">${icon('trash', { size: 15 })}削除</button>
           </span>
         </div>
       </li>`)}</ol>` : html`<p class="muted center">まだ記録はありません。点数や感想は空欄のままでも残せます。</p>`}
@@ -73,10 +93,11 @@ export async function renderDetail(ctx, id) {
 
     <section class="detail-foot">
       ${w.cover.credit ? html`<p class="credit">${w.cover.credit}</p>` : ''}
+      ${!w.cover.url && w.cover.missingReason ? html`<p class="credit">仮表紙：${COVER_MISSING[w.cover.missingReason]}</p>` : ''}
       <p class="muted small">作品情報：${sourceLabel(w)} ・ 登録 ${formatDateTime(w.createdAt)}</p>
       <div class="btn-row">
-        <a class="btn" href="#/work/${w.id}/edit">作品情報を編集</a>
-        <button type="button" class="btn ghost danger-text" data-act="del-work">作品を削除</button>
+        <a class="btn" href="#/work/${w.id}/edit">${icon('edit', { size: 16 })}作品情報を編集</a>
+        <button type="button" class="btn ghost danger-text" data-act="del-work">${icon('trash', { size: 16 })}作品を削除</button>
       </div>
     </section>
   </article>`);
@@ -114,7 +135,7 @@ export async function renderDetail(ctx, id) {
         });
         b.classList.toggle('on', next);
         b.setAttribute('aria-pressed', String(next));
-        b.textContent = next ? '★ お気に入り' : '☆ お気に入り';
+        b.innerHTML = String(favLabel(next));
       } catch (err) {
         toast(`保存できませんでした。${describeError(err)}`, 'error');
       }
@@ -155,7 +176,7 @@ export async function renderEdit(ctx, id) {
   const w = findWork(repo.data, id);
   if (!w) return notFound(ctx);
   ctx.main.innerHTML = String(html`<section class="page">
-    <a class="link-back" href="#/work/${w.id}">← 作品に戻る</a>
+    <a class="link-back" href="#/work/${w.id}">${icon('back', { size: 18 })}作品に戻る</a>
     <h1 class="page-title">作品情報を編集</h1>
     <form class="work-form" novalidate>
       ${coverHtml(w, { size: 'medium' })}
@@ -212,7 +233,7 @@ export async function renderExperience(ctx, workId, expId) {
   const verb = VERBS[w.type];
 
   ctx.main.innerHTML = String(html`<section class="page">
-    <a class="link-back" href="#/work/${w.id}">← 作品に戻る</a>
+    <a class="link-back" href="#/work/${w.id}">${icon('back', { size: 18 })}作品に戻る</a>
     <div class="picked compact">
       ${coverHtml(w, { size: 'small' })}
       <div class="picked-text"><h1 class="picked-title">${w.title}${w.volume ? html` <small>${w.volume}</small>` : ''}</h1>
