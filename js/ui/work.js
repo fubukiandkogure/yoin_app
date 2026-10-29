@@ -1,9 +1,12 @@
 // 作品詳細・作品情報の編集・体験記録の追加と編集。
-import { html, newId, nowIso, formatExpDate, formatDateTime, safeUrl } from '../util.js';
-import { TYPES, STATUSES, VERBS, COVER_MISSING, findWork, experiencesOf, allTags, shelvesContaining } from '../model.js';
+import { html, newId, nowIso, formatExpDate, formatDateTime } from '../util.js';
+import { TYPES_EN, STATUSES, VERBS, COVER_MISSING, findWork, experiencesOf, allTags, shelvesContaining, catalogNumbers, catalogLabel } from '../model.js';
+import { knownTint, getTint } from '../tint.js';
+import { openCoverFinder } from './coverfinder.js';
+import { openWorkCard } from './workcard.js';
 import { describeError } from '../store/errors.js';
 import { coverHtml, scoreText, toast, confirmDialog, placeholderColor } from './components.js';
-import { icon, TYPE_ICON } from './icons.js';
+import { icon } from './icons.js';
 
 const favLabel = (on) => html`${icon(on ? 'starFill' : 'star', { size: 16 })}お気に入り`;
 import {
@@ -19,6 +22,7 @@ function sourceLabel(w) {
   if (s.provider === 'tmdb') return 'TMDB';
   if (s.provider === 'googlebooks') return 'Google Books';
   if (s.provider === 'openbd') return 'openBD';
+  if (s.provider === 'ndl') return '国立国会図書館サーチ';
   return '手入力';
 }
 
@@ -30,7 +34,8 @@ export async function renderDetail(ctx, id) {
   const latest = exps[0] || null;
   const verb = VERBS[w.type];
 
-  const heroUrl = safeUrl(w.cover.url);
+  const nums = catalogNumbers(repo.data);
+  const tint = knownTint(w.cover.url) || placeholderColor(w.title);
   let justAdded = false;
   try {
     justAdded = sessionStorage.getItem('yoin.justAdded') === id;
@@ -38,15 +43,18 @@ export async function renderDetail(ctx, id) {
   } catch { /* 無視 */ }
 
   ctx.main.innerHTML = String(html`<article class="page work-detail">
-    <header class="hero">
-      ${heroUrl ? html`<img class="hero-bg" src="${heroUrl}" alt="" aria-hidden="true" referrerpolicy="no-referrer">` : html`<div class="hero-bg" style="background:${placeholderColor(w.title)}"></div>`}
-      <a class="link-back" href="#/">${icon('back', { size: 18 })}作品棚</a>
+    <header class="hero" style="--tint:${tint}">
+      <div class="hero-orb" aria-hidden="true"></div>
+      <a class="link-back" href="#/">${icon('back', { size: 16 })}Archive</a>
       <div class="detail-head">
-        ${coverHtml(w, { size: 'large', eager: true })}
+        <div>
+          ${coverHtml(w, { size: 'large', eager: true })}
+          ${w.cover.url ? '' : html`<button type="button" class="btn small find-cover" data-act="find-cover">${icon('search', { size: 15 })}表紙を探す</button>`}
+        </div>
         <div class="detail-info">
-          <span class="badge">${icon(TYPE_ICON[w.type], { size: 13 })}${TYPES[w.type]}</span>
+          <div class="detail-no">${catalogLabel(nums.get(w.id))} — ${TYPES_EN[w.type]}${w.year ? ` — ${w.year}` : ''}</div>
           <h1 class="detail-title">${w.title}${w.volume ? html` <small>${w.volume}</small>` : ''}</h1>
-          <p class="muted small">${[w.year ? `${w.year}年` : '', w.creator].filter(Boolean).join(' · ')}</p>
+          ${w.creator ? html`<p class="detail-meta">${w.creator}</p>` : ''}
           ${w.tags.length ? html`<p class="tags">${w.tags.map((t) => html`<span class="tag">#${t}</span>`)}</p>` : ''}
           <div class="quick">
             <label class="quick-status"><span class="sr-only">状態</span><select name="status">${statusOptions(w.status)}</select></label>
@@ -58,49 +66,60 @@ export async function renderDetail(ctx, id) {
 
     ${justAdded ? html`<div class="banner">${icon('check', { size: 18 })}棚に追加しました<a class="btn small" href="#/add">${icon('plus', { size: 16 })}続けて追加</a></div>` : ''}
 
-    ${latest ? html`<section class="latest">
-      <div class="latest-score ${latest.score === null ? 'unscored' : ''}">
-        <span class="num">${latest.score === null ? '未採点' : latest.score}</span>
-        ${latest.score === null ? '' : html`<span class="unit">/ 100</span><div class="meter"><span style="width:${latest.score}%"></span></div>`}
+    ${latest ? html`<section class="verdict">
+      <div class="verdict-score ${latest.score === null ? 'unscored' : ''}">
+        <span class="num">${latest.score === null ? 'No score' : latest.score}</span>
+        ${latest.score === null ? '' : html`<span class="of">/100</span>`}
       </div>
-      ${latest.comment ? html`<p class="latest-comment">「${latest.comment}」</p>` : html`<p class="muted">ひとこと感想はまだありません</p>`}
+      ${latest.comment ? html`<p class="verdict-quote">${latest.comment}</p>` : html`<p class="verdict-quote none">ひとこと感想はまだありません</p>`}
+      ${latest.score === null ? '' : html`<div class="meter" aria-hidden="true"><span style="width:${latest.score}%"></span></div>`}
     </section>` : ''}
 
     <section class="exp-section">
       <div class="section-head">
-        <h2 class="section-title">${verb}記録 <small>${exps.length}件</small></h2>
+        <h2 class="section-title">${verb}記録 <small>${String(exps.length).padStart(2, '0')} records</small></h2>
       </div>
-      <a class="btn primary wide" href="#/work/${w.id}/exp/new">${icon('plus', { size: 18 })}${exps.length ? `もう一度${verb}記録を追加` : '記録を書く'}</a>
+      <div class="detail-actions">
+        <a class="btn primary" href="#/work/${w.id}/exp/new">${icon('plus', { size: 18 })}${exps.length ? `もう一度${verb}記録を追加` : '記録を書く'}</a>
+        <button type="button" class="btn" data-act="card" title="この作品の画像を作る">${icon('image', { size: 18 })}画像</button>
+      </div>
       ${exps.length ? html`<ol class="exp-list">${exps.map((e, i) => html`<li class="exp-card ${i === 0 ? 'latest-exp' : ''}">
         <div class="exp-head">
           <span class="exp-date">${formatExpDate(e.date)}</span>
-          ${i === 0 && exps.length > 1 ? html`<span class="badge subtle">最新</span>` : ''}
-          ${exps.length > 1 ? html`<span class="muted small">${exps.length - i}回目</span>` : ''}
-          <span class="exp-score">${scoreText(e.score)}</span>
+          ${exps.length > 1 ? html`<span class="exp-nth">#${String(exps.length - i).padStart(2, '0')}</span>` : ''}
+          <span class="exp-score ${e.score === null ? 'unscored' : ''}">${e.score === null ? '未採点' : e.score}</span>
         </div>
         ${e.comment ? html`<p class="exp-comment">${e.comment}</p>` : ''}
         ${e.memo ? html`<details class="exp-memo" ${exps.length === 1 ? 'open' : ''}><summary>詳細メモ</summary><div class="memo-text">${e.memo}</div></details>` : ''}
-        ${e.note ? html`<p class="exp-note">${e.note}</p>` : ''}
+        ${e.note ? html`<p class="exp-note">${icon('next', { size: 12 })} ${e.note}</p>` : ''}
         <div class="exp-foot">
-          <small class="muted">記録 ${formatDateTime(e.createdAt)}${e.updatedAt !== e.createdAt ? ` ・ 更新 ${formatDateTime(e.updatedAt)}` : ''}</small>
+          <small class="muted">${formatDateTime(e.createdAt)}${e.updatedAt !== e.createdAt ? ` · edited ${formatDateTime(e.updatedAt)}` : ''}</small>
           <span>
             <a class="btn small ghost" href="#/work/${w.id}/exp/${e.id}">${icon('edit', { size: 15 })}編集</a>
             <button type="button" class="btn small ghost danger-text" data-act="del-exp" data-id="${e.id}">${icon('trash', { size: 15 })}削除</button>
           </span>
         </div>
-      </li>`)}</ol>` : html`<p class="muted center">まだ記録はありません。点数や感想は空欄のままでも残せます。</p>`}
+      </li>`)}</ol>` : html`<p class="muted center" style="margin-top:18px">まだ記録はありません。点数や感想は空欄のままでも残せます。</p>`}
     </section>
 
     <section class="detail-foot">
       ${w.cover.credit ? html`<p class="credit">${w.cover.credit}</p>` : ''}
       ${!w.cover.url && w.cover.missingReason ? html`<p class="credit">仮表紙：${COVER_MISSING[w.cover.missingReason]}</p>` : ''}
-      <p class="muted small">作品情報：${sourceLabel(w)} ・ 登録 ${formatDateTime(w.createdAt)}</p>
+      <p class="credit">作品情報：${sourceLabel(w)} · 登録 ${formatDateTime(w.createdAt)}</p>
       <div class="btn-row">
-        <a class="btn" href="#/work/${w.id}/edit">${icon('edit', { size: 16 })}作品情報を編集</a>
-        <button type="button" class="btn ghost danger-text" data-act="del-work">${icon('trash', { size: 16 })}作品を削除</button>
+        <a class="btn small" href="#/work/${w.id}/edit">${icon('edit', { size: 15 })}作品情報を編集</a>
+        <button type="button" class="btn small ghost" data-act="find-cover">${icon('image', { size: 15 })}${w.cover.url ? '表紙を変える' : '表紙を探す'}</button>
+        <button type="button" class="btn small ghost danger-text" data-act="del-work">${icon('trash', { size: 15 })}作品を削除</button>
       </div>
     </section>
   </article>`);
+
+  // 表紙の色を拾って、上部の背景をその作品の色にする
+  if (w.cover.url && !knownTint(w.cover.url)) {
+    getTint(w.cover.url, { useProxy: repo.settings.coverProxy !== false }).then((t) => {
+      if (t) ctx.main.querySelector('.hero')?.style.setProperty('--tint', t);
+    });
+  }
 
   const main = ctx.main;
   const statusSel = main.querySelector('select[name="status"]');
@@ -123,7 +142,11 @@ export async function renderDetail(ctx, id) {
   main.addEventListener('click', async (e) => {
     const b = e.target.closest('button[data-act]');
     if (!b) return;
-    if (b.dataset.act === 'fav') {
+    if (b.dataset.act === 'find-cover') {
+      if (await openCoverFinder(ctx, id)) ctx.rerender();
+    } else if (b.dataset.act === 'card') {
+      openWorkCard(ctx, id);
+    } else if (b.dataset.act === 'fav') {
       b.disabled = true;
       try {
         let next;

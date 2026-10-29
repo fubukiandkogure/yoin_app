@@ -54,6 +54,7 @@ function draw() {
 function drawSearch(ctx) {
   const main = ctx.main;
   main.innerHTML = String(html`<section class="page add-page">
+    <div class="kicker">Add — 02</div>
     <h1 class="page-title">作品を追加</h1>
     <div class="seg type-seg" role="radiogroup" aria-label="種別">
       ${Object.entries(TYPES).map(([v, l]) => html`<button type="button" role="radio" aria-checked="${st.type === v}" class="${st.type === v ? 'on' : ''}" data-type="${v}">${icon(TYPE_ICON[v], { size: 17 })}${l}</button>`)}
@@ -68,6 +69,7 @@ function drawSearch(ctx) {
       <span>見つからない・画像がないときは</span>
       <button type="button" class="btn" data-act="manual">${icon('edit', { size: 16 })}手入力で登録</button>
     </div>
+    ${st.type === 'book' ? html`<p class="hint">見つからないときは、著者名も入れてみてください（例：三体 劉慈欣）。ISBN（13桁）でも探せます。</p>` : ''}
     <p class="hint center">検索元：${providerLabel(st.type)}</p>
   </section>`);
   const form = main.querySelector('.search-form');

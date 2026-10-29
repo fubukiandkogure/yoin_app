@@ -218,8 +218,10 @@ async function boot() {
 
 applyTheme();
 watchSystemTheme();
+// 少しスクロールしたら上部バーに区切り線を出す
+addEventListener('scroll', () => document.body.classList.toggle('scrolled', scrollY > 8), { passive: true });
 document.title = APP_NAME;
-document.querySelector('.brand').textContent = APP_NAME;
+document.querySelector('.brand-jp').textContent = APP_NAME;
 installCoverErrorHandler();
 boot();
 

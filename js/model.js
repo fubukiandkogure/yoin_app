@@ -6,12 +6,13 @@ import {
 
 export const TYPES = { movie: '映画', book: '本', anime: 'アニメ' };
 export const STATUSES = { planned: 'これから', inprogress: '途中', done: '完了', dropped: '中断' };
-export const PROVIDERS = ['tmdb', 'googlebooks', 'openbd', 'manual'];
+export const PROVIDERS = ['tmdb', 'googlebooks', 'openbd', 'ndl', 'manual'];
 export const COVER_MISSING = {
   no_image: '提供元に画像がありません',
   manual: '手入力で登録しました',
   removed: '画像を外しました',
 };
+export const TYPES_EN = { movie: 'Film', book: 'Book', anime: 'Anime' };
 // 体験の動詞（「観た」「読んだ」）
 export const VERBS = { movie: '観た', book: '読んだ', anime: '観た' };
 
@@ -253,6 +254,13 @@ export function experiencesOf(data, workId) {
 
 /** 作品棚に出す「最新の体験記録」 = いちばん新しく記録したもの */
 export const latestExperience = (data, workId) => experiencesOf(data, workId)[0] || null;
+
+/** 目録番号：登録した順に 1, 2, 3 …（作品ID → 番号） */
+export function catalogNumbers(data) {
+  const sorted = [...data.works].sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : 1));
+  return new Map(sorted.map((w, i) => [w.id, i + 1]));
+}
+export const catalogLabel = (n) => `No.${String(n ?? 0).padStart(3, '0')}`;
 
 export function allTags(data) {
   const count = new Map();

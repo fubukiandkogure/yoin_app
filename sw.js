@@ -1,7 +1,7 @@
 // アプリのファイルは常に最新を取りに行き（更新直後に古いファイルが混ざらないように）、
 // 通信できないときだけ前回の控えを使う（オフラインでも記録を見られるように）。
 // 記録データや外部APIへの通信には手を出さない（同じサイトのファイルだけを扱う）。
-const CACHE = 'yoin-app-v1';
+const CACHE = 'yoin-app-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 

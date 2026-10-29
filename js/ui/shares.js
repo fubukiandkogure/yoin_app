@@ -7,6 +7,7 @@ import { describeError } from '../store/errors.js';
 import { renderShelfImage } from '../png.js';
 import { coverHtml, scoreText, toast, confirmDialog, downloadBlob, loadingHtml } from './components.js';
 import { icon } from './icons.js';
+import { openYearPoster } from './workcard.js';
 
 const TITLE_EXAMPLES = ['自分を構成する9作品', '設定に引き込まれた作品', '今年よかった作品'];
 const OPTION_LABELS = {
@@ -21,10 +22,22 @@ export async function renderList(ctx) {
   const { repo } = ctx;
   const shelves = [...repo.data.shelves].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   ctx.main.innerHTML = String(html`<section class="page">
+    <div class="kicker">Share — 03</div>
     <h1 class="page-title">共有画像</h1>
-    <p class="lead">好きな作品を1〜9つ選んで、表紙を並べた画像を作れます。保存した画像は、LINEなどで自由に送れます。</p>
-    <a class="btn primary wide" href="#/shares/new">${icon('plus', { size: 18 })}新しく作る</a>
-    ${shelves.length ? html`<ul class="shelf-list">${shelves.map((s) => html`<li><a class="shelf-card" href="#/shares/${s.id}">
+    <p class="lead">表紙を並べた画像を作って、保存したりLINEなどで送ったりできます。自分用の感想やメモは載りません。</p>
+    <div class="share-hero">
+      <a class="make-card" href="#/shares/new">
+        <span class="mc-art" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="mc-text"><span class="mc-title">選んで並べる</span><span class="mc-sub">1〜9作品に、すすめる一言を添えて</span></span>
+        ${icon('next', { size: 20 })}
+      </a>
+      <button type="button" class="make-card alt" data-act="poster" style="border:0;text-align:left;cursor:pointer;font:inherit">
+        <span class="mc-art" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        <span class="mc-text"><span class="mc-title">1年のポスター</span><span class="mc-sub">その年に観た・読んだ表紙をぜんぶ</span></span>
+        ${icon('next', { size: 20 })}
+      </button>
+    </div>
+    ${shelves.length ? html`<div class="kicker">Drafts</div><ul class="shelf-list">${shelves.map((s) => html`<li><a class="shelf-card" href="#/shares/${s.id}">
       <div class="mini-covers">${s.items.slice(0, 3).map((it) => {
         const w = findWork(repo.data, it.workId);
         return w ? coverHtml(w, { size: 'mini' }) : '';
@@ -32,9 +45,10 @@ export async function renderList(ctx) {
       <div class="shelf-card-text"><span class="shelf-card-title">${s.title || '無題'}</span>
       <span class="muted small">${s.items.length}作品 ・ ${IMAGE_LAYOUTS[s.options.layout] || ''}</span></div>
       ${icon('next', { size: 18 })}
-    </a></li>`)}</ul>` : html`<p class="muted center empty-note">まだ作っていません。</p>`}
+    </a></li>`)}</ul>` : ''}
     ${repo.data.works.length ? '' : html`<p class="hint center">先に作品棚へ作品を追加してください。</p>`}
   </section>`);
+  ctx.main.querySelector('[data-act="poster"]').addEventListener('click', () => openYearPoster(ctx));
 }
 
 export async function renderEditor(ctx, id) {

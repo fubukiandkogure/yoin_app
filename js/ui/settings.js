@@ -10,9 +10,10 @@ import { toast, confirmDialog, downloadBlob } from './components.js';
 
 export async function renderWelcome(ctx) {
   ctx.main.innerHTML = String(html`<section class="page welcome">
-    <div class="empty-art" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
-    <h1 class="welcome-title">${APP_NAME}</h1>
-    <p class="lead">観た映画、読んだ本、アニメを表紙で並べて、<br>そのときの感想を残しておく自分だけの棚。</p>
+    <div class="ripple-hero" aria-hidden="true"><i></i><i></i><i></i><b></b></div>
+    <h1 class="welcome-title">${APP_NAME}<span class="num">yoin</span></h1>
+    <div class="welcome-sub">A private archive of afterglow</div>
+    <p class="lead">観た映画、読んだ本、アニメ。<br>そのときの感想を、表紙と一緒に残しておく自分だけの棚。</p>
     <div class="welcome-actions">
       <a class="btn primary wide" href="#/settings">GitHubに保存して始める</a>
       <button type="button" class="btn wide" data-act="trial">まず試してみる（この端末だけに保存）</button>
@@ -32,6 +33,7 @@ export async function render(ctx) {
   const s = ready ? repo.settings : {};
 
   ctx.main.innerHTML = String(html`<section class="page settings">
+    <div class="kicker">Settings</div>
     <h1 class="page-title">設定</h1>
 
     <section class="card">
@@ -101,10 +103,15 @@ export async function render(ctx) {
     <section class="card credits">
       <h2 class="section-title">クレジット</h2>
       <p>映画・アニメの作品情報と画像は <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB</a> を利用しています。</p>
+      <p>本の書誌情報は <a href="https://ndlsearch.ndl.go.jp/" target="_blank" rel="noopener">国立国会図書館サーチ</a> を利用しています。</p>
       <p class="small">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
       <p>本の書誌情報と書影は <a href="https://books.google.com/" target="_blank" rel="noopener">Google Books</a> と <a href="https://openbd.jp/" target="_blank" rel="noopener">openBD</a>（版元ドットコム）を利用しています。</p>
       <p class="muted small">${APP_NAME} は個人用の記録アプリです。各画像の権利はそれぞれの権利者に帰属します。</p>
     </section>
+    <footer class="colophon">
+      <span class="brand"><svg class="brand-mark" viewBox="0 0 40 40" width="26" height="26" aria-hidden="true"><circle cx="12" cy="20" r="5.2" class="mark-dot"/><path d="M12 9.5a10.5 10.5 0 0 1 0 21" class="mark-ring r1"/><path d="M12 3a17 17 0 0 1 0 34" class="mark-ring r2"/></svg><span class="brand-jp">${APP_NAME}</span><span class="brand-en">yoin</span></span>
+      <p>A private archive of afterglow</p>
+    </footer>
   </section>`);
 
   const main = ctx.main;

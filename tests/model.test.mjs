@@ -187,3 +187,47 @@ test('共有画像のテーマとレイアウト：初期値・不正な値', ()
   d.shelves[0].options.theme = 'night';
   assert.ok(validateData(d).ok);
 });
+
+test('本の検索：ISBN変換・著者名の整形・表記ゆれに強い並べ替え', async () => {
+  const { toIsbn13, cleanNdlCreator, similarity, mergeBookResults } = await import('../js/search/books.js');
+  assert.equal(toIsbn13('978-4-10-180262-6'), '9784101802626');
+  assert.equal(toIsbn13('4062748681'), '9784062748681');
+  assert.equal(cleanNdlCreator('杉井, 光'), '杉井光');
+  assert.equal(cleanNdlCreator('村上, 春樹, 1949-'), '村上春樹');
+  assert.equal(cleanNdlCreator('Andersen, Hans Christian, 1805-1875'), 'Hans Christian Andersen');
+  const q = '世界でいちばん透き通った物語';
+  assert.ok(similarity(q, '世界でいちばん透きとおった物語') > similarity(q, '世界でいちばん美しい数学'));
+  const merged = mergeBookResults(q, [
+    [
+      { title: '世界でいちばん美しい数学', volume: '', isbn: '9784000000001', cover: null },
+      { title: '世界でいちばん透きとおった物語', volume: '2', isbn: '9784101803005', cover: null },
+      { title: '世界でいちばん透きとおった物語', volume: '', isbn: '9784101802626', cover: null },
+    ],
+    [{ title: '世界でいちばん透きとおった物語', volume: '', isbn: '9784101802626', cover: { url: 'https://x/y.jpg' } }],
+  ]);
+  assert.equal(merged.length, 3); // 同じISBNは1件に
+  assert.equal(merged[0].isbn, '9784101802626'); // 巻なしの本編が先頭
+  assert.equal(merged[0].cover.url, 'https://x/y.jpg'); // 表紙は別の提供元から補われる
+  assert.equal(merged[2].title, '世界でいちばん美しい数学');
+});
+
+test('表記ゆれに強い検索語', async () => {
+  const { fuzzyTokens } = await import('../js/search/books.js');
+  assert.deepEqual(fuzzyTokens('世界でいちばん透き通った物語'), ['世界', 'でいちばん', '物語']);
+  assert.deepEqual(fuzzyTokens('ハリー・ポッターと賢者の石'), ['ハリー・ポッター', '賢者']);
+});
+
+test('巻の表記だけを残す', async () => {
+  const { cleanVolume } = await import('../js/search/books.js');
+  for (const ok of ['2', '上', '第3巻', ': 下', 'Vol.4', '１２']) assert.notEqual(cleanVolume(ok), '', ok);
+  for (const ng of ['す-31-2. nex', '新潮文庫', 'あ-1']) assert.equal(cleanVolume(ng), '', ng);
+});
+
+test('Google の代替画像（表紙なし）を見分ける', async () => {
+  const { isGooglePlaceholderSize, googleCoverByIsbn } = await import('../js/search/books.js');
+  const u = googleCoverByIsbn('9784101802626');
+  assert.equal(isGooglePlaceholderSize(u, 128, 170), true);
+  assert.equal(isGooglePlaceholderSize(u, 128, 184), true);
+  assert.equal(isGooglePlaceholderSize(u, 300, 427), false);
+  assert.equal(isGooglePlaceholderSize('https://image.tmdb.org/t/p/w342/a.jpg', 128, 170), false);
+});

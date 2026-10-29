@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow">
   <meta name="referrer" content="no-referrer">
-  <meta name="theme-color" content="#f5f1e8">
+  <meta name="theme-color" content="#f1ede4">
   <meta name="color-scheme" content="light dark">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: http: data: blob:; connect-src 'self' https://api.github.com https://api.themoviedb.org https://www.googleapis.com https://api.openbd.jp; manifest-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: http: data: blob:; connect-src 'self' https://api.github.com https://api.themoviedb.org https://www.googleapis.com https://api.openbd.jp https://ndlsearch.ndl.go.jp; manifest-src 'self'; base-uri 'none'; form-action 'self'; object-src 'none'">
   <title>余韻</title>
-  <meta name="description" content="映画・本・アニメの感想を表紙と一緒に残す、自分だけの作品棚">
+  <meta name="description" content="観た映画、読んだ本、アニメ。そのときの感想を表紙と一緒に残す、自分だけの作品棚。">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -17,28 +17,35 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="余韻">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
   <script src="js/theme.js"></script>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <div class="grain" aria-hidden="true"></div>
   <header class="topbar">
-    <a href="#/" class="brand">余韻</a>
+    <a href="#/" class="brand" aria-label="余韻 ホーム">
+      <svg class="brand-mark" viewBox="0 0 40 40" width="26" height="26" aria-hidden="true"><circle cx="12" cy="20" r="5.2" class="mark-dot"/><path d="M12 9.5a10.5 10.5 0 0 1 0 21" class="mark-ring r1"/><path d="M12 3a17 17 0 0 1 0 34" class="mark-ring r2"/></svg>
+      <span class="brand-jp">余韻</span><span class="brand-en">yoin</span>
+    </a>
     <span class="mode-badge" hidden>試用モード</span>
     <nav class="top-nav" aria-label="メインメニュー">
-      <a href="#/" data-nav="shelf"><svg class="icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h4v16H3zM9 4h4v16H9zM15.5 5.2l3.8-1 3 15.4-3.8 1z"/></svg>作品棚</a>
-      <a href="#/add" data-nav="add"><svg class="icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>追加</a>
-      <a href="#/shares" data-nav="shares"><svg class="icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><path d="M9.2 3.5v17M14.8 3.5v17M3.5 12h17"/></svg>共有画像</a>
+      <a href="#/" data-nav="shelf"><span class="nav-no">01</span>作品棚</a>
+      <a href="#/add" data-nav="add"><span class="nav-no">02</span>追加</a>
+      <a href="#/shares" data-nav="shares"><span class="nav-no">03</span>共有画像</a>
     </nav>
     <button type="button" class="sync" hidden></button>
     <a href="#/settings" class="settings-link" aria-label="設定">
-      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.5 7.5 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.5 7.5 0 0 0 2.6-1.5l2.4 1 2-3.4z"/></svg>
+      <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.5 7.5 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.5 7.5 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.5 7.5 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.5 7.5 0 0 0 2.6-1.5l2.4 1 2-3.4z"/></svg>
     </a>
   </header>
   <main id="view" tabindex="-1"></main>
   <nav class="bottom-nav" aria-label="メインメニュー">
-    <a href="#/" data-nav="shelf"><span class="nav-ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h4v16H3zM9 4h4v16H9zM15.5 5.2l3.8-1 3 15.4-3.8 1z"/></svg></span><span>作品棚</span></a>
-    <a href="#/add" data-nav="add" class="add"><span class="nav-ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><span>追加</span></a>
-    <a href="#/shares" data-nav="shares"><span class="nav-ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><path d="M9.2 3.5v17M14.8 3.5v17M3.5 12h17"/></svg></span><span>共有</span></a>
+    <a href="#/" data-nav="shelf"><span class="nav-ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h4v16H3zM9 4h4v16H9zM15.5 5.2l3.8-1 3 15.4-3.8 1z"/></svg></span><span>作品棚</span></a>
+    <a href="#/add" data-nav="add" class="add"><span class="nav-ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><span>追加</span></a>
+    <a href="#/shares" data-nav="shares"><span class="nav-ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><path d="M9.2 3.5v17M14.8 3.5v17M3.5 12h17"/></svg></span><span>共有</span></a>
   </nav>
   <noscript><p class="state">このアプリを使うにはJavaScriptを有効にしてください。</p></noscript>
   <script type="module" src="js/app.js"></script>

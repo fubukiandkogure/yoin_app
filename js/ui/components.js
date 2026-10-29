@@ -1,7 +1,8 @@
 // 画面共通の部品（表紙、ダイアログ、トースト、状態表示）。
 import { html, safeUrl } from '../util.js';
-import { TYPES, COVER_MISSING } from '../model.js';
+import { TYPES_EN, COVER_MISSING } from '../model.js';
 import { icon } from './icons.js';
+import { isGooglePlaceholder } from '../search/books.js';
 
 // 仮表紙の色（タイトルごとに決まる、落ち着いた色）
 const PH_COLORS = ['#3f5468', '#7a3b35', '#3e5a4c', '#8a6d3b', '#5b5560', '#46486b', '#2f4746', '#6b4f3a', '#4f3f55', '#55613a', '#2e3e5c', '#6a3f4f'];
@@ -20,7 +21,7 @@ export function coverHtml(item, { size = '', thumb = false, eager = false } = {}
   const reason = url ? '' : (COVER_MISSING[item.cover?.missingReason] || '画像なし');
   return html`<div class="cover ${size} ${url ? '' : 'no-image'}" data-type="${item.type}">
     <div class="cover-ph" style="--ph:${placeholderColor(item.title)}" aria-hidden="true">
-      <span class="ph-type">${TYPES[item.type] || ''}</span>
+      <span class="ph-type">${TYPES_EN[item.type] || ''}</span>
       <span class="ph-title">${item.title}</span>
       <span class="ph-reason">${reason}</span>
     </div>
@@ -30,15 +31,22 @@ export function coverHtml(item, { size = '', thumb = false, eager = false } = {}
 
 // 画像の読み込み失敗を拾って仮表紙に切り替える（CSPでインラインonerrorは使わない）
 export function installCoverErrorHandler(root = document) {
-  root.addEventListener('error', (e) => {
-    const img = e.target;
-    if (!(img instanceof HTMLImageElement) || !img.classList.contains('cover-img')) return;
+  const fail = (img, reason) => {
     const cover = img.closest('.cover');
     if (!cover) return;
     cover.classList.add('no-image', 'failed');
     const r = cover.querySelector('.ph-reason');
-    if (r) r.textContent = '画像を読み込めませんでした';
+    if (r) r.textContent = reason;
     img.remove();
+  };
+  root.addEventListener('error', (e) => {
+    const img = e.target;
+    if (img instanceof HTMLImageElement && img.classList.contains('cover-img')) fail(img, '画像を読み込めませんでした');
+  }, true);
+  // Google Books の「image not available」代替画像は表紙として扱わない
+  root.addEventListener('load', (e) => {
+    const img = e.target;
+    if (img instanceof HTMLImageElement && img.classList.contains('cover-img') && isGooglePlaceholder(img)) fail(img, '提供元に画像がありません');
   }, true);
 }
 
