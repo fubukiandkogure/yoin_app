@@ -221,7 +221,9 @@ watchSystemTheme();
 // 少しスクロールしたら上部バーに区切り線を出す
 addEventListener('scroll', () => document.body.classList.toggle('scrolled', scrollY > 8), { passive: true });
 document.title = APP_NAME;
-document.querySelector('.brand-jp').textContent = APP_NAME;
+// 更新の直後に古い index.html と新しいスクリプトが混ざっても起動できるよう、見た目の部品はなくても止めない
+const brandText = document.querySelector('.brand-jp') || document.querySelector('.brand');
+if (brandText) brandText.textContent = APP_NAME;
 installCoverErrorHandler();
 boot();
 
