@@ -15,7 +15,7 @@ let baseCtx = null;
 
 const fresh = () => ({ type: lastType, query: '', results: null, loading: false, error: null, step: 'search', base: null, seasonsOf: null });
 
-function candToWork(c) {
+export function candToWork(c) {
   return {
     type: c.type,
     title: c.title || '',
@@ -65,6 +65,7 @@ function drawSearch(ctx) {
       <button class="btn primary" type="submit">検索</button>
     </form>
     <div class="results" aria-live="polite">${resultsHtml()}</div>
+    <a class="import-cta" href="#/import">${icon('book', { size: 18 })}<span><b>メモからまとめて追加</b><small>これまでの記録を貼り付けて、一気に棚へ</small></span>${icon('next', { size: 18 })}</a>
     <div class="manual-cta">
       <span>見つからない・画像がないときは</span>
       <button type="button" class="btn" data-act="manual">${icon('edit', { size: 16 })}手入力で登録</button>
@@ -115,7 +116,7 @@ function resultsHtml() {
   if (!st.results) return '';
   if (!st.results.length) return html`<div class="state"><p>「${st.query}」は見つかりませんでした。</p><button type="button" class="btn small primary" data-act="manual">手入力で登録</button></div>`;
   const data = baseCtx.repo.data;
-  return html`<ul class="result-list">${st.results.map((c, i) => {
+  return html`${st.partial ? html`<p class="hint searching-more"><span class="spinner"></span>国立国会図書館サーチでも探しています…</p>` : ''}<ul class="result-list">${st.results.map((c, i) => {
     const owned = findDuplicates(data, candToWork(c)).length > 0 || (c.needsSeason && data.works.some((w) => w.source.provider === c.provider && w.source.id === c.id));
     return html`<li><button type="button" class="result" data-idx="${i}">
     ${coverHtml({ ...c, cover: c.cover || { missingReason: 'no_image' } }, { size: 'thumb', thumb: true })}
@@ -136,7 +137,18 @@ async function runSearch(ctx) {
   st.error = null;
   draw(ctx);
   try {
-    st.results = await searchWorks(st.type, st.query, ctx.repo.settings);
+    const q = st.query;
+    st.results = await searchWorks(st.type, q, ctx.repo.settings, {
+      // 先に返ってきた結果をすぐ見せる（あとから届いた分は最後にまとめて並べ直す）
+      onPartial: (partial) => {
+        if (st.query !== q || !st.loading) return;
+        st.results = partial;
+        st.loading = false;
+        st.partial = true;
+        draw(ctx);
+      },
+    });
+    st.partial = false;
   } catch (e) {
     st.results = null;
     st.error = `検索できませんでした。${describeError(e)}`;

@@ -102,16 +102,30 @@ function parseNdl(xml) {
   }).filter((c) => c.title && (!c.category.length || c.category.includes('図書')));
 }
 
+// 国立国会図書館サーチが混んでいて応答しないときは、しばらく使わずに Google Books だけで探す
+let ndlPausedUntil = 0;
+const NDL_PAUSE_MS = 60000;
+
 async function ndl(params, retry = true) {
+  if (Date.now() < ndlPausedUntil) throw new StoreError('ratelimit', '国立国会図書館サーチが混み合っているため、少しのあいだ使わずに探しています。');
   const url = new URL('https://ndlsearch.ndl.go.jp/api/opensearch');
   for (const [k, v] of Object.entries({ cnt: 30, ...params, mediatype: 'books' })) url.searchParams.set(k, v);
-  const res = await fetchWithTimeout(fetch, url.href);
+  let res;
+  try {
+    res = await fetchWithTimeout(fetch, url.href, {}, 25000);
+  } catch (e) {
+    ndlPausedUntil = Date.now() + NDL_PAUSE_MS;
+    throw e;
+  }
   if (res.status === 429 && retry) {
     // 短時間に検索が続いたときは少し待って1回だけやり直す
     await new Promise((r) => setTimeout(r, 1800));
     return ndl(params, false);
   }
-  if (res.status === 429) throw new StoreError('ratelimit', '国立国会図書館サーチへの検索が多すぎます。少し待ってください。');
+  if (res.status === 429 || res.status >= 500) {
+    ndlPausedUntil = Date.now() + NDL_PAUSE_MS;
+    throw new StoreError('ratelimit', '国立国会図書館サーチが混み合っています。少し待ってください。');
+  }
   if (!res.ok) throw new StoreError('server', `国立国会図書館サーチの検索に失敗しました（${res.status}）。`);
   return parseNdl(await res.text());
 }
@@ -130,9 +144,10 @@ export function fuzzyTokens(query) {
 async function ndlSearch(query) {
   // 続けて問い合わせるときは少し間をあける（国立国会図書館サーチの利用上限に配慮）
   const pause = () => new Promise((res) => setTimeout(res, 400));
-  let r = await ndl({ title: query });
+  // 「題名 著者」のように語が分かれていれば、題名だけでなく全項目から探す
+  let r = /\s/.test(query.trim()) ? [] : await ndl({ title: query });
   if (r.length) return r;
-  await pause();
+  if (!/\s/.test(query.trim())) await pause();
   r = await ndl({ any: query });
   if (r.length) return r;
   const tokens = fuzzyTokens(query);
@@ -301,7 +316,12 @@ async function fillCovers(results) {
   }
 }
 
-export async function searchBooks(query, key) {
+/**
+ * 本を探す。
+ * - onPartial：先に返ってきた検索元の結果をすぐ見せたいときのコールバック（国立国会図書館サーチは遅いことがある）
+ * - googleFirst：まず Google Books だけで探し、結果がなかったときだけ国立国会図書館サーチも使う（まとめて追加用）
+ */
+export async function searchBooks(query, key, { onPartial, googleFirst = false } = {}) {
   const q = String(query).normalize('NFKC').trim();
   const isbn = toIsbn13(q);
   const errors = [];
@@ -314,8 +334,22 @@ export async function searchBooks(query, key) {
       settle(ndl({ isbn })),
       settle(googleSearch(isbn, key)),
     ]);
+  } else if (googleFirst) {
+    const g = await settle(googleSearch(q, key));
+    lists = g.length ? [g] : [g, await settle(ndlSearch(q))];
   } else {
-    lists = await Promise.all([settle(ndlSearch(q)), settle(googleSearch(q, key))]);
+    const gp = settle(googleSearch(q, key));
+    const np = settle(ndlSearch(q));
+    if (onPartial) {
+      // Google が先に返ってきたら、国立国会図書館サーチを待たずに一度見せる
+      gp.then(async (g) => {
+        if (!g.length) return;
+        const partial = mergeBookResults(q, [g]).slice(0, 30);
+        await fillCovers(partial).catch(() => {});
+        onPartial(partial);
+      });
+    }
+    lists = await Promise.all([np, gp]);
   }
   const results = mergeBookResults(q, lists).slice(0, 30);
   // どれか1つでも検索できていれば「見つからない」として返す（全部失敗したときだけエラー）

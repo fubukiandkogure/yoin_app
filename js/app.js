@@ -11,6 +11,7 @@ import * as addView from './ui/add.js';
 import * as workView from './ui/work.js';
 import * as sharesView from './ui/shares.js';
 import * as settingsView from './ui/settings.js';
+import * as importerView from './ui/importer.js';
 
 const main = document.getElementById('view');
 let repo = null;
@@ -25,6 +26,7 @@ let viewRoot = main;
 const routes = [
   [/^\/?$/, shelfView.render, 'shelf'],
   [/^\/add$/, addView.render, 'add'],
+  [/^\/import$/, importerView.render, 'add'],
   [/^\/work\/([^/]+)$/, workView.renderDetail, 'shelf'],
   [/^\/work\/([^/]+)\/edit$/, workView.renderEdit, 'shelf'],
   [/^\/work\/([^/]+)\/exp\/([^/]+)$/, workView.renderExperience, 'shelf'],

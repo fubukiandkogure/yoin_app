@@ -85,7 +85,8 @@ export async function render(ctx) {
     <section class="card">
       <h2 class="section-title">バックアップ</h2>
       <p class="hint">作品・記録・共有画像の設定をすべてJSONファイルに書き出します（APIキーは含みません）。</p>
-      <button type="button" class="btn" data-act="export">JSONを書き出す</button>
+      <div class="btn-row"><button type="button" class="btn" data-act="export">JSONを書き出す</button>
+      <a class="btn ghost" href="#/import">メモからまとめて追加</a></div>
       <h3 class="sub-title">復元</h3>
       <p class="hint">バックアップから復元すると、今の記録はすべて置き換わります。</p>
       <label class="btn file-btn">JSONファイルを選ぶ<input type="file" accept="application/json,.json" hidden></label>
